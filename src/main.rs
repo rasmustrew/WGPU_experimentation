@@ -6,7 +6,7 @@ use winit::{
 };
 use futures::executor::block_on;
 use wgpu::util::DeviceExt;
-use wgpu::{Device, BindGroupLayout, BindGroup, Buffer};
+use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Face};
 use crate::texture::Texture;
 use cgmath::{Deg, Matrix4, Point3, Vector3, Vector4, SquareMatrix};
 use crate::camera::{Camera, OPENGL_TO_WGPU_MATRIX, TransformationMatrix};
@@ -114,7 +114,7 @@ impl State {
 
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-            format: adapter.get_swap_chain_preferred_format(&surface),
+            format: adapter.get_swap_chain_preferred_format(&surface).unwrap(),
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
@@ -128,8 +128,13 @@ impl State {
         let (texture_bind_group_layout, diffuse_bind_group) = State::create_texture_bind_group(&device, &diffuse_texture);
 
 
-        let vs_module = device.create_shader_module(&wgpu::include_spirv!("../shaders/shader.vert.spv"));
-        let fs_module = device.create_shader_module(&wgpu::include_spirv!("../shaders/shader.frag.spv"));
+        // let vs_module = device.create_shader_module(&wgpu::include_spirv!("../shaders/shader.vert.spv"));
+        // let fs_module = device.create_shader_module(&wgpu::include_spirv!("../shaders/shader.frag.spv"));
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Render Pipeline Layout"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
+            flags: wgpu::ShaderFlags::all(),
+        });
 
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -162,29 +167,30 @@ impl State {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &vs_module,
+                module: &shader,
                 entry_point: "main", // 1.
                 buffers: &[
                     vertex::Vertex::desc(),
                 ],
             },
             fragment: Some(wgpu::FragmentState { // 3.
-                module: &fs_module,
+                module: &shader,
                 entry_point: "main",
                 targets: &[wgpu::ColorTargetState { // 4.
                     format: sc_desc.format,
-                    alpha_blend: wgpu::BlendState::REPLACE,
-                    color_blend: wgpu::BlendState::REPLACE,
                     write_mask: wgpu::ColorWrite::ALL,
+                    blend: Some(wgpu::BlendState::REPLACE),
                 }],
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList, // 1.
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw, // 2.
-                cull_mode: wgpu::CullMode::Back,
+                cull_mode: Some(Face::Back),
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: false,
             },
             depth_stencil: None, // 1.
             multisample: wgpu::MultisampleState {
@@ -332,8 +338,8 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[
-                    wgpu::RenderPassColorAttachmentDescriptor {
-                        attachment: &frame.view,
+                    wgpu::RenderPassColorAttachment {
+                        view: &frame.view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
