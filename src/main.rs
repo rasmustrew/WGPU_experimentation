@@ -8,12 +8,14 @@ use futures::executor::block_on;
 use wgpu::util::DeviceExt;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Face};
 use crate::texture::Texture;
-use cgmath::{Deg, Matrix4, Point3, Vector3, Vector4, SquareMatrix};
-use crate::camera::{Camera, OPENGL_TO_WGPU_MATRIX, TransformationMatrix};
+use cgmath::{Deg, Matrix4, Vector3};
+use crate::camera::{Camera};
+use crate::transformation_matrix::TransformationMatrix;
 
 mod vertex;
 mod texture;
 mod camera;
+mod transformation_matrix;
 
 
 
@@ -32,7 +34,6 @@ struct State {
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
     camera: camera::Camera,
-    camera_transform: TransformationMatrix,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
 }
@@ -66,38 +67,43 @@ impl State {
 
 
         let aspect = size.width as f32 / size.height as f32;
-        let model = TransformationMatrix {
-            translation: Matrix4::from_translation(Vector3 {
-                x: 0.0, y: 0.0, z: 0.0,
-            }),
-            rotation: Matrix4::from_angle_z(Deg(0.0)),
-            scale: Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0),
-        }.combine();
+        let translation =  Vector3 {
+            x: 0.0, y: 0.0, z: 0.0,
+        };
+        let rotation =  Vector3 {
+            x: 0.0, y: 0.0, z: 0.0,
+        };
+        let scale = Vector3 {
+            x: 1.0, y: 1.0, z: 1.0,
+        };
+        let model_transform = TransformationMatrix::new(translation, rotation, scale);
+        println!("model: {:?}", model_transform);
 
-        println!("model: {:?}", model);
 
-        let camera_transform = TransformationMatrix {
-            translation: Matrix4::from_translation (Vector3 { x: 0.0, y: 0.0, z: 2.0}),
-            rotation: Matrix4::from_angle_z(Deg(0.0)),
-            scale: Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0),
+        let camera_translation = Vector3 {
+            x: 0.0, y: 0.0, z: 2.0,
+        };
+        let camera_rotation = Vector3 {
+            x: 0.0, y: 0.0, z: 0.0,
+        };
+        let camera_shape = Vector3 {
+            x: 1.0, y: 1.0, z: 1.0,
         };
 
-        let camera_matrix = camera_transform.combine();
+        let camera_transform = TransformationMatrix::new(camera_translation, camera_rotation, camera_shape);
 
-        println!("camera: {:?}", camera_matrix);
-        let view = camera_matrix.invert().unwrap();
+
+        println!("camera: {:?}", camera_transform);
         let projection = cgmath::perspective(Deg(90.0), aspect, 0.1, 10.0);
 
         let camera = Camera {
-            model,
-            view,
+            model_transform,
+            camera_transform,
             projection,
         };
 
         let mvp = camera.build_model_view_projection_matrix();
         let mvp = &mvp;
-
-
 
         let uniform_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -214,7 +220,6 @@ impl State {
             num_indices,
             diffuse_bind_group,
             diffuse_texture,
-            camera_transform,
             camera,
             uniform_buffer,
             uniform_bind_group,
@@ -312,10 +317,7 @@ impl State {
     }
 
     fn move_camera(&mut self, new_camera_transformation: TransformationMatrix) {
-        self.camera_transform = new_camera_transformation;
-        let camera_matrix = self.camera_transform.combine();
-        let view = camera_matrix.invert().unwrap();
-        self.camera.view = view;
+        self.camera.camera_transform = new_camera_transformation;
 
 
         let mvp = self.camera.build_model_view_projection_matrix();
@@ -373,10 +375,60 @@ impl State {
 
 }
 
-
+fn handle_keyboard_input(state: &mut State, input: KeyboardInput) {
+    match input {
+        KeyboardInput {
+            state: ElementState::Pressed,
+            virtual_keycode: Some(VirtualKeyCode::W),
+            ..
+        } => {
+            // let new_camera_transformation = state.camera.camera_transform;
+            
+            // state.move_camera(new_camera_transformation)
+        }
+        ,
+        _ => {}
+    }
+}
 
 
 fn main() {
+
+    let mat1 = cgmath::Matrix4::new(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    );
+
+    let mat2 = cgmath::Matrix4::new(
+        1.0, 0.0, 0.0, 2.0,
+        0.0, 1.0, 0.0, 2.0,
+        0.0, 0.0, 1.0, 2.0,
+        0.0, 0.0, 0.0, 1.0,
+    );
+
+    let mat3 = cgmath::Matrix4::new(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 0.86, -0.5, 0.0,
+        0.0, 0.5, 0.86, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    );
+
+    let res = mat3 * mat2;
+    let reverse_res = mat2 * mat3;
+
+    let combined = mat2 * reverse_res;
+    let reverse_combined = reverse_res * mat2;
+
+    let more_rotation = mat3 * reverse_combined;
+
+    println!("{:?}", res);
+    println!("{:?}", reverse_res);
+    println!("{:?}", combined);
+    println!("{:?}", reverse_combined);
+    println!("{:?}", more_rotation);
+
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
