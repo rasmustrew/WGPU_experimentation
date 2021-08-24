@@ -8,7 +8,7 @@ use futures::executor::block_on;
 use wgpu::util::DeviceExt;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Face};
 use crate::texture::Texture;
-use cgmath::{Deg, Matrix4, Vector3};
+use cgmath::{Deg, Matrix4, Point3, Vector3};
 use crate::camera::{Camera};
 use crate::transformation_matrix::TransformationMatrix;
 
@@ -67,30 +67,18 @@ impl State {
 
 
         let aspect = size.width as f32 / size.height as f32;
+
         let translation =  Vector3 {
             x: 0.0, y: 0.0, z: 0.0,
         };
-        let rotation =  Vector3 {
-            x: 0.0, y: 0.0, z: 0.0,
-        };
-        let scale = Vector3 {
-            x: 1.0, y: 1.0, z: 1.0,
-        };
-        let model_transform = TransformationMatrix::new(translation, rotation, scale);
+        let model_transform = TransformationMatrix::new(translation, Deg(0.0), Deg(0.0), Deg(0.0));
         println!("model: {:?}", model_transform);
 
 
         let camera_translation = Vector3 {
             x: 0.0, y: 0.0, z: 2.0,
         };
-        let camera_rotation = Vector3 {
-            x: 0.0, y: 0.0, z: 0.0,
-        };
-        let camera_shape = Vector3 {
-            x: 1.0, y: 1.0, z: 1.0,
-        };
-
-        let camera_transform = TransformationMatrix::new(camera_translation, camera_rotation, camera_shape);
+        let camera_transform = TransformationMatrix::new(camera_translation,  Deg(0.0), Deg(0.0), Deg(0.0));
 
 
         println!("camera: {:?}", camera_transform);
@@ -292,11 +280,11 @@ impl State {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&diffuse_texture.view), // CHANGED!
+                        resource: wgpu::BindingResource::TextureView(&diffuse_texture.view), 
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler), // CHANGED!
+                        resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler), 
                     }
                 ],
                 label: Some("diffuse_bind_group"),
@@ -314,16 +302,6 @@ impl State {
 
     fn input(&mut self, event: &WindowEvent) -> bool {
         false
-    }
-
-    fn move_camera(&mut self, new_camera_transformation: TransformationMatrix) {
-        self.camera.camera_transform = new_camera_transformation;
-
-
-        let mvp = self.camera.build_model_view_projection_matrix();
-        let mvp = &mvp;
-
-        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(mvp));
     }
 
     fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
@@ -376,58 +354,30 @@ impl State {
 }
 
 fn handle_keyboard_input(state: &mut State, input: KeyboardInput) {
+    let mut camera_movement = Point3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+
+    
     match input {
         KeyboardInput {
             state: ElementState::Pressed,
             virtual_keycode: Some(VirtualKeyCode::W),
             ..
         } => {
-            // let new_camera_transformation = state.camera.camera_transform;
-            
-            // state.move_camera(new_camera_transformation)
+            camera_movement.x += 1.0
         }
         ,
         _ => {}
     }
+
+    // let new_camera_transform = state.camera.camera_transform.transform(camera_movement,  Deg(0.0), Deg(0.0), Deg(0.0));
 }
 
 
 fn main() {
-
-    let mat1 = cgmath::Matrix4::new(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0,
-    );
-
-    let mat2 = cgmath::Matrix4::new(
-        1.0, 0.0, 0.0, 2.0,
-        0.0, 1.0, 0.0, 2.0,
-        0.0, 0.0, 1.0, 2.0,
-        0.0, 0.0, 0.0, 1.0,
-    );
-
-    let mat3 = cgmath::Matrix4::new(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 0.86, -0.5, 0.0,
-        0.0, 0.5, 0.86, 0.0,
-        0.0, 0.0, 0.0, 1.0,
-    );
-
-    let res = mat3 * mat2;
-    let reverse_res = mat2 * mat3;
-
-    let combined = mat2 * reverse_res;
-    let reverse_combined = reverse_res * mat2;
-
-    let more_rotation = mat3 * reverse_combined;
-
-    println!("{:?}", res);
-    println!("{:?}", reverse_res);
-    println!("{:?}", combined);
-    println!("{:?}", reverse_combined);
-    println!("{:?}", more_rotation);
 
     env_logger::init();
     let event_loop = EventLoop::new();

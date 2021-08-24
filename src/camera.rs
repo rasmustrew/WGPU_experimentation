@@ -12,8 +12,9 @@ pub struct Camera {
 
 impl Camera {
     pub fn build_model_view_projection_matrix(&self) -> [[f32; 4]; 4] {
-        let view = self.camera_transform.get_combined().invert().unwrap();
-        let model_view_proj_matrix = OPENGL_TO_WGPU_MATRIX * self.projection * view * self.model_transform.get_combined();
+        let view = self.camera_transform.compute_transformation_matrix().invert().unwrap();
+        dbg!(self.model_transform.compute_transformation_matrix());
+        let model_view_proj_matrix = OPENGL_TO_WGPU_MATRIX * self.projection * view * self.model_transform.compute_transformation_matrix();
         let model_view_proj_matrix: [[f32; 4]; 4] = *model_view_proj_matrix.as_ref();
         return model_view_proj_matrix
 

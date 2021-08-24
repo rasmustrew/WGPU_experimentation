@@ -1,73 +1,59 @@
-use cgmath::{Deg, Matrix4, Vector3};
+use cgmath::{Angle, Deg, InnerSpace, Matrix4, Point3, Rad, Vector3};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransformationMatrix {
-    translation: Vector3<f32>,
-    rotation: Vector3<f32>,
-    scale: Vector3<f32>,
-    combined: Matrix4<f32>,
+    position: Vector3<f32>,
+    yaw: Rad<f32>,
+    pitch: Rad<f32>,
+    roll: Rad<f32>,
 }
 
 impl TransformationMatrix {
 
-    pub fn new(translation: Vector3<f32>, rotation: Vector3<f32>, scale: Vector3<f32>) -> TransformationMatrix {
-        let combined = Self::compute_transformation_matrix(translation, rotation, scale);
-        return TransformationMatrix {
-            translation,
-            rotation,
-            scale,
-            combined
+    pub fn new<
+        V: Into<Vector3<f32>>,
+        Y: Into<Rad<f32>>,
+        P: Into<Rad<f32>>,
+        R: Into<Rad<f32>>,
+    >(
+        position: V, pitch: Y, yaw: P, roll: R
+    ) -> Self {
+        Self {
+            position: position.into(),
+            yaw: yaw.into(),
+            pitch: pitch.into(), 
+            roll: roll.into(),
         }
     }
 
-    pub fn get_combined(&self) -> Matrix4<f32> {
-        return self.combined;
-    }
 
-    pub fn get_translation(&self) -> Vector3<f32> {
-        return self.translation;
-    }
+    // CGMAT uses coloumn major matrices
+    pub fn compute_transformation_matrix(&self) -> Matrix4<f32> {
 
-    pub fn get_rotation(&self) -> Vector3<f32> {
-        return self.rotation
-    }
+        let pitch = Matrix4::from_angle_x(self.pitch);
+        let yaw = Matrix4::from_angle_y(self.yaw);
+        let roll = Matrix4::from_angle_z(self.roll); 
+        let pos = Matrix4::from_translation(self.position);
+        let scale = Matrix4::from_scale(1.0);
 
-    fn to_rotation_matrix(rotation: Vector3<f32>) -> Matrix4<f32> {
-        return Matrix4::from_angle_x(Deg(rotation.x)) * 
-        Matrix4::from_angle_y(Deg(rotation.y)) * 
-        Matrix4::from_angle_z(Deg(rotation.z));
-    }
+        // Extrinsic rotation
+        let rotation = pitch * yaw * roll;
 
-    pub fn get_scale(&self) -> Vector3<f32> {
-        return self.scale
-    }
-
-    fn to_scale_matrix(scale: Vector3<f32>) -> Matrix4<f32> {
-        return Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
-    }
-
-    fn compute_transformation_matrix(translation: Vector3<f32>, rotation: Vector3<f32>, scale: Vector3<f32>) -> Matrix4<f32> {
-        let rotation = Self::to_rotation_matrix(rotation);
-        let scale = Self::to_scale_matrix(scale);
-        let translation = Matrix4::from_translation(translation); 
-        return scale * rotation * translation; 
-    }
-
-    pub fn move_in_current_rotation(&mut self, xyz: Vector3<f32>) -> () {
-        let translation = Matrix4::from_translation(xyz);
-        self.combined = translation * self.combined;
-        self.translation = self.combined.w.truncate()
-    }
-
-    pub fn rotate(&mut self, theta: Vector3<f32>) -> () {
-        self.rotation += theta;
-        self.combined = Self::compute_transformation_matrix(self.translation, self.rotation, self.scale);
+        // Scale, then rotate, then translate
+        let transformation = scale * rotation * pos;
+        return transformation
         
     }
 
-    pub fn scale(&mut self, xyz: Vector3<f32>) -> () {
-        self.scale += xyz;
-        self.combined = Self::compute_transformation_matrix(self.translation, self.rotation, self.scale);
+    pub fn transform<
+        V: Into<Point3<f32>>,
+        Y: Into<Rad<f32>>,
+        P: Into<Rad<f32>>,
+        R: Into<Rad<f32>>,
+    >(
+        &self, movement: V, rotate_pitch: Y, rotate_yaw: P, rotate_roll: R
+    ) -> Self {
+        return (*self).clone();
     }
 
 }
